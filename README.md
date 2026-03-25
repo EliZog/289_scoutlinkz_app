@@ -13,13 +13,11 @@ Follow these steps to run the app locally in your browser.
 
 ### 2. Navigate to the Project Folder
 
-Make sure you are inside the project directory:
+Make sure you are at the project directory:
 
 ```
-scoutz_linkz_app
+289_scoutlinkz_app
 ```
-
-(Use `cd` if needed to navigate into the folder.)
 
 ---
 
@@ -31,7 +29,7 @@ Run the following command:
 flutter run -d chrome
 ```
 
-This will launch the app in Google Chrome.
+This will launch the app in Google Chrome. (give it a sec)
 
 ---
 
