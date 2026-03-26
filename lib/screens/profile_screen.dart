@@ -22,7 +22,8 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   bool _isFollowing = false;
-  int _selectedRecruiterStatus = 0; // 0: Interested, 1: Under Review, ...
+  int _selectedRecruiterStatus = -1; // -1: None, 0: Interested, 1: Contacted, 2: In Review, 3: Passed
+  bool _isAthleteSaved = false;
 
   // Editable Profile State Data
   String _fullName = 'Devin Smith';
@@ -61,6 +62,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
         });
         return;
       }
+      
+      if (widget.role == UserRole.recruiter) {
+        final myUid = FirebaseAuth.instance.currentUser?.uid;
+        if (myUid != null) {
+          FirebaseFirestore.instance.collection('scouts').doc(myUid).snapshots().listen((doc) {
+            if (doc.exists && mounted) {
+              final data = doc.data()!;
+              final savedIds = List<String>.from(data['savedIds'] ?? []);
+              final statuses = Map<String, dynamic>.from(data['statuses'] ?? {});
+              
+              setState(() {
+                _isAthleteSaved = savedIds.contains(targetUid);
+                String currentStatus = statuses[targetUid] ?? 'none';
+                if (currentStatus == 'interested') _selectedRecruiterStatus = 0;
+                else if (currentStatus == 'contacted') _selectedRecruiterStatus = 1;
+                else if (currentStatus == 'in-review') _selectedRecruiterStatus = 2;
+                else if (currentStatus == 'passed') _selectedRecruiterStatus = 3;
+                else _selectedRecruiterStatus = -1;
+              });
+            }
+          });
+        }
+      }
+
       FirebaseFirestore.instance.collection('athletes').doc(targetUid).snapshots().listen((doc) {
         if (doc.exists && mounted) {
           final data = doc.data()!;
@@ -179,6 +204,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 32),
                     _buildHighlightsOther(), // Reusing the vertical 16:9 list from Athlete view
                     const SizedBox(height: 24),
+                  ] else if (widget.role == UserRole.scoutSelf) ...[
+                    _buildScoutDashboard(),
                   ],
                 ],
               ),
@@ -265,7 +292,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
           title: const Text('Recruiter View', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontStyle: FontStyle.italic, letterSpacing: -0.5)),
           actions: [
-            IconButton(icon: const Icon(Icons.star, color: Colors.amber), onPressed: () {}),
+            IconButton(
+              icon: Icon(_isAthleteSaved ? Icons.star : Icons.star_border, color: _isAthleteSaved ? Colors.amber : Colors.grey),
+              onPressed: _toggleSaveAthlete,
+            ),
             IconButton(icon: const Icon(Icons.more_horiz, color: Colors.grey), onPressed: () {}),
             const SizedBox(width: 8),
           ],
@@ -346,21 +376,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
                 ),
                 const SizedBox(height: 4),
-                Wrap(
-                  spacing: 4,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(color: Colors.grey[800], borderRadius: BorderRadius.circular(4)),
-                      child: const Text('GOALKEEPER', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 0.5)),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(color: Colors.grey[800], borderRadius: BorderRadius.circular(4)),
-                      child: const Text('CLASS OF 2026', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 0.5)),
-                    ),
-                  ],
-                ),
+                if (widget.role == UserRole.scoutSelf || widget.role == UserRole.recruiter && _positionStr.contains('Recruiter'))
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.2), borderRadius: BorderRadius.circular(6)),
+                    child: Text(_positionStr.split('•').last.trim().toUpperCase(), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.primary, letterSpacing: 0.5)),
+                  )
+                else
+                  Wrap(
+                    spacing: 4,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(color: Colors.grey[800], borderRadius: BorderRadius.circular(4)),
+                        child: Text(_positionStr.split('•').first.trim().toUpperCase(), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 0.5)),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(color: Colors.grey[800], borderRadius: BorderRadius.circular(4)),
+                        child: Text(_positionStr.split('•').last.trim().toUpperCase(), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 0.5)),
+                      ),
+                    ],
+                  ),
               ],
             ),
           )
@@ -632,62 +669,261 @@ class _ProfileScreenState extends State<ProfileScreen> {
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          _buildPill('Interested', Icons.check_circle, AppColors.statusInterested, _selectedRecruiterStatus == 0, () => setState(() => _selectedRecruiterStatus = 0)),
+          _buildPill('Interested', AppColors.statusInterested, _selectedRecruiterStatus == 0, () => _updateScoutStatus('interested')),
           const SizedBox(width: 8),
-          _buildPill('Contacted', null, AppColors.statusContacted, _selectedRecruiterStatus == 1, () => setState(() => _selectedRecruiterStatus = 1)),
+          _buildPill('Contacted', AppColors.statusContacted, _selectedRecruiterStatus == 1, () => _updateScoutStatus('contacted')),
           const SizedBox(width: 8),
-          _buildPill('Interview', null, AppColors.statusInterview, _selectedRecruiterStatus == 2, () => setState(() => _selectedRecruiterStatus = 2)),
+          _buildPill('In Review', AppColors.statusInterview, _selectedRecruiterStatus == 2, () => _updateScoutStatus('in-review')),
           const SizedBox(width: 8),
-          _buildPill('Pass', null, AppColors.statusPassed, _selectedRecruiterStatus == 3, () => setState(() => _selectedRecruiterStatus = 3)),
+          _buildPill('Passed', AppColors.statusPassed, _selectedRecruiterStatus == 3, () => _updateScoutStatus('passed')),
         ],
       ),
     );
   }
 
-  Widget _buildPill(String label, IconData? icon, Color color, bool isActive, VoidCallback onTap) {
+  Widget _buildPill(String label, Color color, bool isActive, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: isActive ? color.withOpacity(0.1) : Colors.transparent,
+        color: isActive ? color.withOpacity(0.1) : AppColors.cardLight.withOpacity(0.05),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: isActive ? color : Colors.grey[800]!, width: 2),
+        border: Border.all(color: isActive ? color : Colors.transparent, width: 2),
       ),
       child: Row(
         children: [
-          if (icon != null) ...[Icon(icon, size: 14, color: color), const SizedBox(width: 6)],
-          Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold)),
+          if (isActive) ...[Icon(Icons.check_circle, size: 14, color: color), const SizedBox(width: 6)],
+          Text(label, style: TextStyle(color: isActive ? color : Colors.grey, fontSize: 13, fontWeight: FontWeight.bold)),
         ],
       ),
     ));
+  }
+  
+  Future<void> _updateScoutStatus(String status) async {
+    final myUid = FirebaseAuth.instance.currentUser?.uid;
+    if (myUid != null && widget.athleteUid != null) {
+      // Toggle off if same
+      String newStatus = status;
+      if (status == 'interested' && _selectedRecruiterStatus == 0) newStatus = 'none';
+      if (status == 'contacted' && _selectedRecruiterStatus == 1) newStatus = 'none';
+      if (status == 'in-review' && _selectedRecruiterStatus == 2) newStatus = 'none';
+      if (status == 'passed' && _selectedRecruiterStatus == 3) newStatus = 'none';
+
+      await FirebaseFirestore.instance.collection('scouts').doc(myUid).set({
+         'statuses': { widget.athleteUid!: newStatus }
+      }, SetOptions(merge: true));
+    }
+  }
+
+  Future<void> _toggleSaveAthlete() async {
+    final myUid = FirebaseAuth.instance.currentUser?.uid;
+    if (myUid != null && widget.athleteUid != null) {
+      if (_isAthleteSaved) {
+        await FirebaseFirestore.instance.collection('scouts').doc(myUid).update({
+          'savedIds': FieldValue.arrayRemove([widget.athleteUid!])
+        });
+      } else {
+        await FirebaseFirestore.instance.collection('scouts').doc(myUid).set({
+          'savedIds': FieldValue.arrayUnion([widget.athleteUid!]),
+          'statuses': { widget.athleteUid!: 'interested' } // Auto-mark interested on save
+        }, SetOptions(merge: true));
+      }
+    }
+  }
+
+  Widget _buildScoutDashboard() {
+    final myUid = FirebaseAuth.instance.currentUser?.uid;
+    if (myUid == null) return const SizedBox();
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance.collection('scouts').doc(myUid).snapshots(),
+      builder: (context, snapshot) {
+        int savedCount = 0;
+        int contactedCount = 0;
+        int inReviewCount = 0;
+        List<String> savedIds = [];
+        
+        if (snapshot.hasData && snapshot.data!.exists) {
+          final data = snapshot.data!.data() as Map<String, dynamic>;
+          savedIds = List<String>.from(data['savedIds'] ?? []);
+          savedCount = savedIds.length;
+          final statuses = Map<String, dynamic>.from(data['statuses'] ?? {});
+          statuses.values.forEach((val) {
+             if (val == 'interested') savedCount++; // Also count implicit saves
+             if (val == 'contacted') contactedCount++;
+             if (val == 'in-review') inReviewCount++;
+          });
+        }
+
+        return Column(
+          children: [
+            Row(
+              children: [
+                Expanded(child: _buildStatCard(savedCount.toString(), 'SAVED ATHLETES')),
+                const SizedBox(width: 12),
+                Expanded(child: _buildStatCard(contactedCount.toString(), 'CONTACTED')),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(child: _buildStatCard(inReviewCount.toString(), 'IN REVIEW')),
+                const SizedBox(width: 12),
+                Expanded(child: _buildStatCard('0', 'PROFILE VIEWS')),
+              ],
+            ),
+            const SizedBox(height: 48),
+            if (savedIds.isNotEmpty) ...[
+               const Row(
+                 children: [
+                   Icon(Icons.star, color: Colors.amber, size: 20),
+                   SizedBox(width: 8),
+                   Text('Starred Athletes', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.amber)),
+                 ],
+               ),
+               const SizedBox(height: 16),
+               StreamBuilder<QuerySnapshot>(
+                 stream: FirebaseFirestore.instance.collection('athletes').where(FieldPath.documentId, whereIn: savedIds.take(10).toList()).snapshots(),
+                 builder: (context, starredSnap) {
+                    if (!starredSnap.hasData) return const Center(child: CircularProgressIndicator());
+                    final starredDocs = starredSnap.data!.docs;
+                    return GridView.builder(
+                       shrinkWrap: true,
+                       physics: const NeverScrollableScrollPhysics(),
+                       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                         crossAxisCount: 3,
+                         crossAxisSpacing: 12,
+                         mainAxisSpacing: 12,
+                         childAspectRatio: 0.85,
+                       ),
+                       itemCount: starredDocs.length,
+                       itemBuilder: (context, index) => _buildAthleteGridCard(starredDocs[index], isStarred: true),
+                    );
+                 }
+               ),
+               const SizedBox(height: 24),
+            ],
+            
+            const Row(
+              children: [
+                Text('Recent Athletes', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 16),
+            StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance.collection('athletes').orderBy('createdAt', descending: true).limit(9).snapshots(),
+              builder: (context, athletesSnap) {
+                 if (!athletesSnap.hasData) return const Center(child: CircularProgressIndicator());
+                 final docs = athletesSnap.data!.docs;
+                 return GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 0.85,
+                    ),
+                    itemCount: docs.length,
+                    itemBuilder: (context, index) => _buildAthleteGridCard(docs[index], isStarred: false),
+                 );
+              }
+            )
+          ],
+        );
+      }
+    );
+  }
+
+  Widget _buildAthleteGridCard(DocumentSnapshot doc, {bool isStarred = false}) {
+    final ath = doc.data() as Map<String, dynamic>;
+    String rawName = (ath['name'] ?? 'A').toString().trim();
+    String initial = rawName.isNotEmpty ? rawName[0].toUpperCase() : 'A';
+    
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(
+           role: UserRole.recruiter,
+           onNavigateToMessages: widget.onNavigateToMessages,
+           athleteUid: doc.id,
+        )));
+      },
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: isStarred ? Colors.amber.withOpacity(0.05) : AppColors.cardLight.withOpacity(0.05), 
+          borderRadius: BorderRadius.circular(16),
+          border: isStarred ? Border.all(color: Colors.amber.withOpacity(0.5), width: 1.5) : null,
+          boxShadow: isStarred ? [BoxShadow(color: Colors.amber.withOpacity(0.1), blurRadius: 8, spreadRadius: 1)] : null,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Stack(
+              alignment: Alignment.center,
+              clipBehavior: Clip.none,
+              children: [
+                CircleAvatar(
+                  radius: 26, 
+                  backgroundColor: isStarred ? Colors.amber[700] : AppColors.primary, 
+                  child: Text(initial, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold))
+                ),
+                if (isStarred)
+                  Positioned(
+                    bottom: -2, right: -2,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(color: Colors.amber, shape: BoxShape.circle, border: Border.all(color: AppColors.backgroundDark, width: 2)),
+                      child: const Icon(Icons.star, color: Colors.white, size: 10),
+                    ),
+                  )
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(ath['name'] ?? 'Athlete', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis, maxLines: 1),
+            const SizedBox(height: 2),
+            Text(ath['position'] ?? 'Player', style: TextStyle(fontSize: 10, color: Colors.grey[400]), overflow: TextOverflow.ellipsis, maxLines: 1),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildRecruiterSummary() {
     if (widget.athleteUid == null) return const SizedBox();
     
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('conversations').snapshots(),
+      stream: FirebaseFirestore.instance.collection('scouts').snapshots(),
       builder: (context, snapshot) {
+        int scoreModifier = 0;
         int scoutCount = 0;
         List<String> activeScoutUids = [];
         
         if (snapshot.hasData) {
-          final myConvos = snapshot.data!.docs.where((doc) => doc.id.contains(widget.athleteUid!)).toList();
-          scoutCount = myConvos.length;
-          for (var doc in myConvos) {
-             String otherUid = doc.id.replaceAll(widget.athleteUid!, '').replaceAll('_', '');
-             if (otherUid.isNotEmpty) activeScoutUids.add(otherUid);
+          for (var doc in snapshot.data!.docs) {
+             final data = doc.data() as Map<String, dynamic>;
+             final statuses = Map<String, dynamic>.from(data['statuses'] ?? {});
+             final status = statuses[widget.athleteUid!];
+             
+             if (status != null && status != 'none') {
+                scoutCount++;
+                activeScoutUids.add(doc.id);
+                if (status == 'interested') scoreModifier += 1;
+                else if (status == 'contacted') scoreModifier += 2;
+                else if (status == 'in-review') scoreModifier += 3;
+                else if (status == 'passed') scoreModifier += 4;
+             }
           }
         }
 
         String scoreLetter = 'C';
-        if (scoutCount >= 6) scoreLetter = 'A+';
-        else if (scoutCount >= 3) scoreLetter = 'A';
-        else if (scoutCount >= 1) scoreLetter = 'B';
+        if (scoreModifier >= 10) scoreLetter = 'A+';
+        else if (scoreModifier >= 6) scoreLetter = 'A';
+        else if (scoreModifier >= 3) scoreLetter = 'B';
 
-        String demandLabel = scoutCount >= 3 ? 'High Demand' : (scoutCount >= 1 ? 'Solid Interest' : 'Developing');
-        Color demandColor = scoutCount >= 3 ? Colors.orange : (scoutCount >= 1 ? Colors.green : Colors.grey);
+        String demandLabel = scoreModifier >= 6 ? 'High Demand' : (scoreModifier >= 3 ? 'Solid Interest' : 'Developing');
+        Color demandColor = scoreModifier >= 6 ? Colors.orange : (scoreModifier >= 3 ? Colors.green : Colors.grey);
 
         return Container(
           padding: const EdgeInsets.all(20),
@@ -769,7 +1005,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text('Active Scouts', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                            Text('$scoutCount Messaging', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                            Text('$scoutCount Active', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                           ],
                         ),
                       ),
@@ -825,19 +1061,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildActionButtonsRecruiter() {
     return Row(
       children: [
-        Expanded(child: _buildButton('Contact', Icons.send, true, height: 56, onTap: () {
+        Expanded(child: _buildButton('Contact', Icons.send, true, height: 56, onTap: () async {
           final user = FirebaseAuth.instance.currentUser;
           if (user != null && widget.athleteUid != null) {
             final convId = '${user.uid}_${widget.athleteUid!}';
-            Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(
-               conversationId: convId,
-               otherUid: widget.athleteUid!,
-               otherName: _fullName,
-            )));
+            
+            // Create conversation doc explicitly to prevent loading lock
+            await FirebaseFirestore.instance.collection('conversations').doc(convId).set({
+               'scoutUid': user.uid,
+               'athleteUid': widget.athleteUid!,
+               'updatedAt': FieldValue.serverTimestamp(),
+               'participants': [user.uid, widget.athleteUid!],
+            }, SetOptions(merge: true));
+
+            if (mounted) {
+               Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(
+                  conversationId: convId,
+                  otherUid: widget.athleteUid!,
+                  otherName: _fullName,
+               )));
+            }
           }
         })),
         const SizedBox(width: 12),
-        Expanded(child: _buildButton('Add Note', Icons.edit_note, false, height: 56)),
+        Expanded(child: _buildButton('Add Note', Icons.edit_note, false, height: 56, onTap: _showAddNoteBottomSheet)),
       ],
     );
   }
@@ -886,92 +1133,133 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _showScoutsBottomSheet() {
+  void _showAddNoteBottomSheet() {
+    final TextEditingController _noteController = TextEditingController();
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: AppColors.cardDark,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Scouts Viewing', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+      builder: (context) => Padding(
+         padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 24, right: 24, top: 24),
+         child: Column(
+           mainAxisSize: MainAxisSize.min,
+           crossAxisAlignment: CrossAxisAlignment.start,
+           children: [
+              const Text('Add Private Note', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
               const SizedBox(height: 16),
-              ListView.builder(
-                shrinkWrap: true,
-                itemCount: 3,
-                itemBuilder: (context, index) {
-                  final schools = ['University of Michigan', 'Ohio State University', 'Penn State'];
-                  final initials = ['UM', 'OSU', 'PSU'];
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: CircleAvatar(backgroundColor: Colors.grey[800], child: Text(initials[index], style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-                    title: Text('Anonymous Scout', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                    subtitle: Text(schools[index], style: TextStyle(color: Colors.grey[400], fontSize: 12)),
-                  );
-                },
+              TextField(
+                controller: _noteController, 
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Record a scouting observation...',
+                  hintStyle: TextStyle(color: Colors.grey[500]),
+                  filled: true,
+                  fillColor: AppColors.backgroundDark,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                ), 
+                maxLines: 4
               ),
               const SizedBox(height: 16),
-            ],
-          ),
-        );
-      },
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                  onPressed: () async {
+                    if (_noteController.text.isNotEmpty) {
+                      final myUid = FirebaseAuth.instance.currentUser?.uid;
+                      if (myUid != null && widget.athleteUid != null) {
+                         final ref = FirebaseFirestore.instance.collection('scouts').doc(myUid).collection('notes').doc(widget.athleteUid);
+                         await ref.set({
+                            'notesList': FieldValue.arrayUnion([{
+                                'text': _noteController.text,
+                                'date': Timestamp.now()
+                            }])
+                         }, SetOptions(merge: true));
+                      }
+                    }
+                    if (mounted) Navigator.pop(context);
+                  },
+                  child: const Text('Save Note', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                ),
+              ),
+              const SizedBox(height: 24),
+           ]
+         )
+      )
     );
   }
 
   Widget _buildPrivateScoutNotesInner() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Row(
-            children: [
-              Icon(Icons.description, color: AppColors.primary, size: 20),
-              SizedBox(width: 8),
-              Text('Private Scout Notes', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: AppColors.cardDark, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey[800]!)),
-            child: Column(
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(width: 32, height: 32, decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.grey[700]), child: const Center(child: Text('ME', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)))),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text('My Observation', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                              Text('2 days ago', style: TextStyle(fontSize: 10, color: Colors.grey[500])),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text('Exceptional reflexes on close-range shots. Distribution with feet is college-ready. Needs to work on command of the 6-yard box during corners.', style: TextStyle(fontSize: 12, color: Colors.grey[400], height: 1.5)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 10),
-                  decoration: BoxDecoration(border: Border.all(color: AppColors.primary.withOpacity(0.3)), borderRadius: BorderRadius.circular(12), color: AppColors.primary.withOpacity(0.05)),
-                  child: const Center(child: Text('View All 3 Notes', style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.bold))),
-                )
-              ],
-            ),
-          )
-        ],
+    final myUid = FirebaseAuth.instance.currentUser?.uid;
+    if (myUid == null || widget.athleteUid == null) return const SizedBox();
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance.collection('scouts').doc(myUid).collection('notes').doc(widget.athleteUid).snapshots(),
+      builder: (context, snapshot) {
+         List<dynamic> notes = [];
+         if (snapshot.hasData && snapshot.data!.exists) {
+            notes = (snapshot.data!.data() as Map<String, dynamic>)['notesList'] ?? [];
+         }
+         
+         if (notes.isEmpty) return const SizedBox();
+
+         final latestNote = notes.last as Map<String, dynamic>;
+         final noteText = latestNote['text'] ?? '';
+         
+         return Column(
+           crossAxisAlignment: CrossAxisAlignment.start,
+           children: [
+             const Row(
+                 children: [
+                   Icon(Icons.description, color: AppColors.primary, size: 20),
+                   SizedBox(width: 8),
+                   Text('Private Scout Notes', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                 ],
+               ),
+               const SizedBox(height: 16),
+               Container(
+                 padding: const EdgeInsets.all(20),
+                 decoration: BoxDecoration(color: AppColors.cardDark, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey[800]!)),
+                 child: Column(
+                   children: [
+                     Row(
+                       crossAxisAlignment: CrossAxisAlignment.start,
+                       children: [
+                         Container(width: 32, height: 32, decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.grey[700]), child: const Center(child: Text('ME', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)))),
+                         const SizedBox(width: 12),
+                         Expanded(
+                           child: Column(
+                             crossAxisAlignment: CrossAxisAlignment.start,
+                             children: [
+                               Row(
+                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                 children: [
+                                   const Text('My Observation', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                   Text('Active Note', style: TextStyle(fontSize: 10, color: Colors.grey[500])),
+                                 ],
+                               ),
+                               const SizedBox(height: 6),
+                               Text(noteText, style: TextStyle(fontSize: 13, color: Colors.grey[300], height: 1.5)),
+                             ],
+                           ),
+                         ),
+                       ],
+                     ),
+                     if (notes.length > 1) ...[
+                       const SizedBox(height: 16),
+                       Container(
+                         width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 10),
+                         decoration: BoxDecoration(border: Border.all(color: AppColors.primary.withOpacity(0.3)), borderRadius: BorderRadius.circular(12), color: AppColors.primary.withOpacity(0.05)),
+                         child: Center(child: Text('View All ${notes.length} Notes', style: const TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.bold))),
+                       )
+                     ]
+                   ],
+                 ),
+               )
+             ],
+         );
+      }
     );
   }
 

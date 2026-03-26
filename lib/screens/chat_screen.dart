@@ -104,8 +104,14 @@ class _ChatScreenState extends State<ChatScreen> {
                   .orderBy('timestamp', descending: true)
                   .snapshots(),
               builder: (context, snapshot) {
-                if (!snapshot.hasData) {
+                if (snapshot.hasError) {
+                  return Center(child: Text("Error: ${snapshot.error}", style: const TextStyle(color: Colors.white)));
+                }
+                if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+                }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Center(child: Text("Start the conversation!", style: TextStyle(color: Colors.grey)));
                 }
 
                 final messages = snapshot.data!.docs;

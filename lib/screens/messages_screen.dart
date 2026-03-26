@@ -92,7 +92,8 @@ class MessagesScreen extends StatelessWidget {
                       if (scoutSnap.hasData && scoutSnap.data!.exists) {
                         final scoutData = scoutSnap.data!.data() as Map<String, dynamic>;
                         name = scoutData['name'] ?? scoutData['displayName'] ?? 'Recruiter';
-                        initial = name.length >= 2 ? name.substring(0, 2).toUpperCase() : name.substring(0, 1).toUpperCase();
+                        if (name.trim().isEmpty) name = 'Recruiter';
+                        initial = name.length >= 2 ? name.substring(0, 2).toUpperCase() : name[0].toUpperCase();
                       }
 
                       return GestureDetector(
@@ -315,7 +316,7 @@ class MessagesScreen extends StatelessWidget {
         ),
         child: Center(
           child: Text(
-            name.substring(0, 1),
+            name.isNotEmpty ? name[0].toUpperCase() : 'U',
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
         ),

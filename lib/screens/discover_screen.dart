@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../main.dart'; // AppColors
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 import 'profile_screen.dart'; // UserRole
 import 'auth/role_selection_screen.dart';
@@ -134,11 +135,23 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             onTap: () {
               if (highlight['athleteUid'] == null) return;
               
+              final currentUid = FirebaseAuth.instance.currentUser?.uid;
+              final isMe = currentUid == highlight['athleteUid'];
+              
+              UserRole targetRole;
+              if (widget.role == UserRole.recruiter) {
+                targetRole = UserRole.recruiter;
+              } else if (isMe) {
+                targetRole = UserRole.athleteSelf;
+              } else {
+                targetRole = UserRole.athleteOther;
+              }
+              
               Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (context) => ProfileScreen(
-                    role: widget.role == UserRole.recruiter ? UserRole.recruiter : UserRole.athleteOther,
+                    role: targetRole,
                     athleteUid: highlight['athleteUid'],
                     onNavigateToMessages: () {
                       Navigator.pop(context); // Optional UI routing logic
