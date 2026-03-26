@@ -303,10 +303,13 @@ class _AthleteSignupScreenState extends State<AthleteSignupScreen> {
         height: 56,
         child: ElevatedButton(
           onPressed: _isLoading ? null : () {
-            if (_currentStep < 2) {
-              setState(() => _currentStep++);
-            } else {
-              _publishProfile();
+            if (_formKey.currentState!.validate()) {
+              _formKey.currentState!.save();
+              if (_currentStep < 2) {
+                setState(() => _currentStep++);
+              } else {
+                _publishProfile();
+              }
             }
           },
           style: ElevatedButton.styleFrom(
