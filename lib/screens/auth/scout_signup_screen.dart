@@ -15,6 +15,7 @@ class _ScoutSignupScreenState extends State<ScoutSignupScreen> {
   
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _organizationController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
@@ -24,6 +25,7 @@ class _ScoutSignupScreenState extends State<ScoutSignupScreen> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+    _organizationController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
@@ -46,6 +48,7 @@ class _ScoutSignupScreenState extends State<ScoutSignupScreen> {
         await FirebaseFirestore.instance.collection('scouts').doc(userCredential.user!.uid).set({
           'displayName': _nameController.text.trim(),
           'email': _emailController.text.trim(),
+          'organization': _organizationController.text.trim(),
           'role': 'scout',
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
@@ -120,6 +123,14 @@ class _ScoutSignupScreenState extends State<ScoutSignupScreen> {
                   controller: _emailController,
                   autofillHints: const [AutofillHints.email, AutofillHints.username],
                   validator: (val) => val == null || !val.contains('@') ? 'Invalid email' : null,
+                ),
+                const SizedBox(height: 20),
+                _buildTextField(
+                  label: 'Organization / Team',
+                  hint: 'FC Barcelona Academy',
+                  controller: _organizationController,
+                  autofillHints: const [AutofillHints.organizationName],
+                  validator: (val) => val == null || val.isEmpty ? 'Required' : null,
                 ),
                 const SizedBox(height: 20),
                 _buildTextField(

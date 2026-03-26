@@ -43,7 +43,7 @@ class _MainScreenState extends State<MainScreen> {
         return DiscoverScreen(role: widget.initialRole);
       case 2: // Profile Tab
         return ProfileScreen(
-          role: widget.initialRole == UserRole.recruiter ? UserRole.recruiter : UserRole.athleteSelf,
+          role: widget.initialRole == UserRole.recruiter ? UserRole.scoutSelf : UserRole.athleteSelf,
           onNavigateToMessages: () => setState(() => _currentIndex = 0),
         );
       default:

@@ -5,8 +5,9 @@ import 'edit_profile_screen.dart';
 import 'settings_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'chat_screen.dart';
 
-enum UserRole { unauthenticated, athleteSelf, athleteOther, recruiter }
+enum UserRole { unauthenticated, athleteSelf, athleteOther, recruiter, scoutSelf }
 
 class ProfileScreen extends StatefulWidget {
   final UserRole role; // Injected from MainScreen
@@ -46,6 +47,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _loadProfileData() {
     final targetUid = widget.athleteUid ?? FirebaseAuth.instance.currentUser?.uid;
     if (targetUid != null) {
+      if (widget.role == UserRole.scoutSelf) {
+        FirebaseFirestore.instance.collection('scouts').doc(targetUid).snapshots().listen((doc) {
+          if (doc.exists && mounted) {
+            final data = doc.data()!;
+            setState(() {
+              _fullName = data['displayName'] ?? 'Recruiter';
+              _positionStr = 'Recruiter • ${data['organization'] ?? 'Independent'}';
+              _aboutText = 'Scout / Recruiter Profile';
+              _tagsText = 'Scout';
+            });
+          }
+        });
+        return;
+      }
       FirebaseFirestore.instance.collection('athletes').doc(targetUid).snapshots().listen((doc) {
         if (doc.exists && mounted) {
           final data = doc.data()!;
@@ -132,8 +147,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildHeader(),
-                  const SizedBox(height: 24),
-                  _buildStatsRow(),
+                  if (widget.role != UserRole.scoutSelf) ...[
+                    const SizedBox(height: 24),
+                    _buildStatsRow(),
+                  ],
                   const SizedBox(height: 24),
                   
                   // Role-specific sections
@@ -253,6 +270,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(width: 8),
           ],
         );
+      case UserRole.scoutSelf:
+        return AppBar(
+          backgroundColor: AppColors.backgroundLight.withOpacity(0.0),
+          surfaceTintColor: Colors.transparent,
+          flexibleSpace: ClipRect(
+            child: BackdropFilter(
+              filter: ColorFilter.mode(AppColors.backgroundDark.withOpacity(0.8), BlendMode.srcOver),
+              child: Container(decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.white12)))),
+            ),
+          ),
+          title: const Text('Scout Profile', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: -0.5)),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.settings_outlined, color: Colors.grey),
+              onPressed: () {
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsScreen()));
+              },
+            ),
+            const SizedBox(width: 8),
+          ],
+        );
       default:
         return AppBar(backgroundColor: Colors.transparent, elevation: 0);
     }
@@ -262,7 +300,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildHeader() {
     String initial = _fullName.isNotEmpty ? _fullName[0].toUpperCase() : 'U';
 
-    if (widget.role == UserRole.recruiter) {
+    if (widget.role == UserRole.recruiter || widget.role == UserRole.scoutSelf) {
       return Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -744,7 +782,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildActionButtonsRecruiter() {
     return Row(
       children: [
-        Expanded(child: _buildButton('Contact', Icons.send, true, height: 56, onTap: widget.onNavigateToMessages)),
+        Expanded(child: _buildButton('Contact', Icons.send, true, height: 56, onTap: () {
+          final user = FirebaseAuth.instance.currentUser;
+          if (user != null && widget.athleteUid != null) {
+            final convId = '${user.uid}_${widget.athleteUid!}';
+            Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(
+               conversationId: convId,
+               otherUid: widget.athleteUid!,
+               otherName: _fullName,
+            )));
+          }
+        })),
         const SizedBox(width: 12),
         Expanded(child: _buildButton('Add Note', Icons.edit_note, false, height: 56)),
       ],
