@@ -664,118 +664,161 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildRecruiterSummary() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.cardDark,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.grey[800]!),
-        gradient: const LinearGradient(colors: [AppColors.cardDark, Color(0xFF0F172A)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            top: 0, right: 0,
-            child: Column(
-              children: [
-                const Text('SCOUT SCORE', style: TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-                const SizedBox(height: 4),
-                Container(
-                  width: 56, height: 56,
-                  decoration: BoxDecoration(shape: BoxShape.circle, color: AppColors.primary.withOpacity(0.1), border: Border.all(color: AppColors.primary, width: 4)),
-                  child: const Center(child: Text('A+', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900))),
-                )
-              ],
-            ),
+    if (widget.athleteUid == null) return const SizedBox();
+    
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('conversations').snapshots(),
+      builder: (context, snapshot) {
+        int scoutCount = 0;
+        List<String> activeScoutUids = [];
+        
+        if (snapshot.hasData) {
+          final myConvos = snapshot.data!.docs.where((doc) => doc.id.contains(widget.athleteUid!)).toList();
+          scoutCount = myConvos.length;
+          for (var doc in myConvos) {
+             String otherUid = doc.id.replaceAll(widget.athleteUid!, '').replaceAll('_', '');
+             if (otherUid.isNotEmpty) activeScoutUids.add(otherUid);
+          }
+        }
+
+        String scoreLetter = 'C';
+        if (scoutCount >= 6) scoreLetter = 'A+';
+        else if (scoutCount >= 3) scoreLetter = 'A';
+        else if (scoutCount >= 1) scoreLetter = 'B';
+
+        String demandLabel = scoutCount >= 3 ? 'High Demand' : (scoutCount >= 1 ? 'Solid Interest' : 'Developing');
+        Color demandColor = scoutCount >= 3 ? Colors.orange : (scoutCount >= 1 ? Colors.green : Colors.grey);
+
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppColors.cardDark,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.grey[800]!),
+            gradient: const LinearGradient(colors: [AppColors.cardDark, Color(0xFF0F172A)], begin: Alignment.topLeft, end: Alignment.bottomRight),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Stack(
             children: [
-              const Row(
-                children: [
-                  Icon(Icons.analytics, color: AppColors.primary, size: 16),
-                  SizedBox(width: 8),
-                  Text('RECRUITER SUMMARY', style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Height', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                        RichText(text: const TextSpan(children: [TextSpan(text: "6'3\"", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)), TextSpan(text: " (191cm)", style: TextStyle(fontSize: 12, color: Colors.grey))])),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Weight', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                        RichText(text: const TextSpan(children: [TextSpan(text: "185 lbs", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)), TextSpan(text: " (84kg)", style: TextStyle(fontSize: 12, color: Colors.grey))])),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Recruiter Interest', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                        Row(
-                          children: [
-                            Container(width: 8, height: 8, decoration: const BoxDecoration(color: Colors.orange, shape: BoxShape.circle)),
-                            const SizedBox(width: 6),
-                            const Text('High Demand', style: TextStyle(color: Colors.orange, fontSize: 14, fontWeight: FontWeight.bold)),
-                          ],
-                        )
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Active Scouts', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                        const Text('12 Watching', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              const Divider(color: Colors.white12),
-              const SizedBox(height: 8),
-              GestureDetector(
-                onTap: _showScoutsBottomSheet,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              Positioned(
+                top: 0, right: 0,
+                child: Column(
                   children: [
-                    SizedBox(
-                      width: 60, height: 24,
-                      child: Stack(
-                        children: [
-                          Positioned(left: 0, child: Container(width: 24, height: 24, decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.grey[700], border: Border.all(color: AppColors.cardDark, width: 2)), child: const Center(child: Text('U1', style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold))))),
-                          Positioned(left: 16, child: Container(width: 24, height: 24, decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.grey[600], border: Border.all(color: AppColors.cardDark, width: 2)), child: const Center(child: Text('M2', style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold))))),
-                          Positioned(left: 32, child: Container(width: 24, height: 24, decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.grey[500], border: Border.all(color: AppColors.cardDark, width: 2)), child: const Center(child: Text('S3', style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold))))),
-                        ],
-                      ),
-                    ),
-                    const Text('Other scouts from Big 10 are viewing', style: TextStyle(color: Colors.grey, fontSize: 10)),
+                    const Text('SCOUT SCORE', style: TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+                    const SizedBox(height: 4),
+                    Container(
+                      width: 56, height: 56,
+                      decoration: BoxDecoration(shape: BoxShape.circle, color: AppColors.primary.withOpacity(0.1), border: Border.all(color: AppColors.primary, width: 4)),
+                      child: Center(child: Text(scoreLetter, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900))),
+                    )
                   ],
                 ),
-              )
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.analytics, color: AppColors.primary, size: 16),
+                      SizedBox(width: 8),
+                      Text('RECRUITER SUMMARY', style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Height', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                            RichText(text: TextSpan(children: [TextSpan(text: _height.isNotEmpty ? _height : "--", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white))])),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Weight', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                            RichText(text: TextSpan(children: [TextSpan(text: _weight.isNotEmpty ? _weight : "--", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white))])),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Recruiter Interest', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                            Row(
+                              children: [
+                                Container(width: 8, height: 8, decoration: BoxDecoration(color: demandColor, shape: BoxShape.circle)),
+                                const SizedBox(width: 6),
+                                Text(demandLabel, style: TextStyle(color: demandColor, fontSize: 14, fontWeight: FontWeight.bold)),
+                              ],
+                            )
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Active Scouts', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                            Text('$scoutCount Messaging', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(color: Colors.white12),
+                  const SizedBox(height: 8),
+                  if (activeScoutUids.isNotEmpty)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        SizedBox(
+                          width: (activeScoutUids.take(3).length * 16.0) + 12.0, height: 24,
+                          child: Stack(
+                            children: activeScoutUids.take(3).toList().asMap().entries.map((entry) {
+                              int idx = entry.key;
+                              String scoutId = entry.value;
+                              return Positioned(
+                                left: idx * 16.0,
+                                child: StreamBuilder<DocumentSnapshot>(
+                                  stream: FirebaseFirestore.instance.collection('scouts').doc(scoutId).snapshots(),
+                                  builder: (context, scoutSnap) {
+                                     String initials = 'S';
+                                     if (scoutSnap.hasData && scoutSnap.data!.exists) {
+                                       var data = scoutSnap.data!.data() as Map<String, dynamic>?;
+                                       if (data != null) {
+                                         String name = data['organization'] ?? data['displayName'] ?? 'S';
+                                         initials = name.isNotEmpty ? name[0].toUpperCase() : 'S';
+                                       }
+                                     }
+                                     return Container(width: 24, height: 24, decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.grey[(800 - idx * 100).clamp(400, 800)], border: Border.all(color: AppColors.cardDark, width: 2)), child: Center(child: Text(initials, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold))));
+                                  }
+                                )
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                        Text('Organizations are active', style: const TextStyle(color: Colors.grey, fontSize: 10)),
+                      ],
+                    )
+                  else
+                    const Text('No active scouts yet.', style: TextStyle(color: Colors.grey, fontSize: 10)),
+                ],
+              ),
             ],
           ),
-        ],
-      ),
+        );
+      }
     );
   }
 

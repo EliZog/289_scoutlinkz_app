@@ -3,9 +3,11 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_options.dart';
 
 import 'screens/main_screen.dart';
+import 'screens/profile_screen.dart';
 import 'screens/auth/role_selection_screen.dart'; // Assume this is the starting auth screen
 
 void main() async {
@@ -68,7 +70,18 @@ class AthleteProfileApp extends StatelessWidget {
           );
         }
         if (snapshot.hasData && snapshot.data != null) {
-          return const MainScreen();
+          return FutureBuilder<DocumentSnapshot>(
+            future: FirebaseFirestore.instance.collection('scouts').doc(snapshot.data!.uid).get(),
+            builder: (context, scoutSnapshot) {
+              if (scoutSnapshot.connectionState == ConnectionState.waiting) {
+                return const Scaffold(body: Center(child: CircularProgressIndicator()));
+              }
+              if (scoutSnapshot.hasData && scoutSnapshot.data!.exists) {
+                return const MainScreen(initialRole: UserRole.recruiter);
+              }
+              return const MainScreen(initialRole: UserRole.athleteSelf);
+            },
+          );
         }
         return const RoleSelectionScreen(); // Navigate to role selection if not authenticated
       },
